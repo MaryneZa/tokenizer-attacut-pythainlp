@@ -4,10 +4,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
-from attacut import utils, dataloaders, logger
+from attacut import utils, dataloaders
 from . import BaseModel, ConvolutionBatchNorm
 
-log = logger.get_logger(__name__)
 
 
 class Model(BaseModel):
@@ -17,10 +16,8 @@ class Model(BaseModel):
         super(Model, self).__init__()
 
         no_chars = data_config['num_char_tokens']
-        log.info("no. characters: %d" % no_chars)
 
         no_syllables = data_config['num_tokens']
-        log.info("no. syllables: %d" % no_syllables)
         config = utils.parse_model_params(model_config)
         conv_filters = config['conv']
         dropout_rate = config.get("do", 0)

@@ -1,9 +1,8 @@
 import torch
 from .version import __version__
 from typing import Dict, List
-from attacut import artifacts, dataloaders, logger, models, preprocessing, utils
+from attacut import artifacts, dataloaders, models, preprocessing, utils
 
-log = logger.get_logger(__name__)
 
 class Attacut:
     def __init__(self, model: str = "attacut-sc"):
@@ -12,7 +11,6 @@ class Attacut:
         model_path = artifacts.get_path(model)
         params = utils.load_training_params(model_path)
         model_name = params.name
-        log.info("loading model %s" % model_name)
         model_cls: models.BaseModel = models.get_model(model_name)
 
         # instantiate dataset

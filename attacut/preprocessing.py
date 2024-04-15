@@ -4,7 +4,6 @@ import string
 from typing import Dict, List
 
 import ssg
-from attacut.minpythainlp import thai_digit_to_arabic_digit
 
 ARABIC_RX = re.compile(r"[A-Za-z]+")
 CAMEL_CASE_RX = re.compile(r"([a-z])([A-Z])([a-z])")
@@ -12,14 +11,6 @@ EMAIL_RX = re.compile(r"^\w+\@\w+\.\w+$")
 NUMBER_RX = re.compile(r"[0-9,]+")
 TRAILING_SPACE_RX = re.compile(r"\n$")
 URL_RX = re.compile(r"(https?:\/\/)?(\w+\.)?\w+\.\w+")
-
-DEFAULT_PREPROCESSING_STEPS = [
-    "remove_tags", 
-    "thai_digit_to_arabic_digit",
-    "new_line_as_space",
-    "remove_first_pipe",
-    "remove_last_pipe"
-]
 
 
 def syllable2token(syllable: str) -> str:
