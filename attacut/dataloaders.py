@@ -2,7 +2,7 @@
 import numpy as np
 import torch
 from torch.utils.data import Dataset
-
+import json
 from attacut import preprocessing, utils
 
 class SequenceDataset(Dataset):
@@ -18,17 +18,18 @@ class SequenceDataset(Dataset):
         y = inputs[1].float().to(device).reshape(-1)
 
         return (x, seq_lengths), y, y.shape[0]
+    
 
-class CharacterSeqDataset(SequenceDataset):
-    def setup_featurizer(self, path: str):
-        self.dict = utils.load_dict(f"{path}/characters.json")
 
-        return dict(num_tokens=len(self.dict))
 
 class SyllableCharacterSeqDataset(SequenceDataset):
     def setup_featurizer(self, path: str):
-        self.ch_dict = utils.load_dict(f"{path}/characters.json")
-        self.sy_dict = utils.load_dict(f"{path}/syllables.json")
+
+        with open(f"{path}/characters.json", "r", encoding="utf-8") as f:
+            self.ch_dict = json.load(f)
+
+        with open(f"{path}/syllables.json", "r", encoding="utf-8") as f:
+            self.sy_dict = json.load(f)
 
         return dict(
             num_char_tokens=len(self.ch_dict),
