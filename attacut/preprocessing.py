@@ -37,13 +37,11 @@ def find_words_from_preds(tokens, preds) -> List[str]:
     curr_word = tokens[0]
     words = []
     for s, p in zip(tokens[1:], preds[1:]):
-        print(f"pre curr_word : {curr_word}")
         if p == 0:
             curr_word = curr_word + s
         else:
             words.append(curr_word)
             curr_word = s
-        print(f"curr_word preprocess: {curr_word}  |  s : {s}  |  p : {p}")
 
     words.append(curr_word)
 
@@ -58,9 +56,7 @@ def syllable_tokenize(txt: str) -> List[str]:
     new_tokens = []
 
     for i, s in enumerate(seps):
-        print(f"i: {i}  |  s : {s}")
         tokens = ssg.syllable_tokenize(s)
-        print(f"token : {tokens}")
         new_tokens.extend(tokens)
 
         if i < len(seps) - 1:

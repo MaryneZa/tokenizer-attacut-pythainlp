@@ -12,14 +12,10 @@ class Attacut(nn.Module):
     def __init__(self, model_config: Dict = STATIC_MODEL_CONFIG,model: str = "attacut_sc"):
         super(Attacut, self).__init__()
         self.dataset = dataloaders.SyllableCharacterSeqDataset()
-        # data_config: Dict = self.dataset.setup_featurizer("attacut/models/attacut_sc")
-        # no_chars = data_config['num_char_tokens']
-        # no_syllables = data_config['num_tokens']
         self.characters_dict = model_config["characters"]
         self.syllables_dict = model_config["syllables"]
         no_chars = len(self.characters_dict)
         no_syllables = len(self.syllables_dict)
-        # print(f"data_config : {data_config}")
         
         conv_filters = model_config['conv']
         self.dropout = torch.nn.Dropout(p=model_config['do']) 
@@ -73,29 +69,6 @@ class Attacut(nn.Module):
 
         return out
 
-    # def tokenizer(self, txt: str, sep="|", device="cpu", pred_threshold=0.5) -> List[str]:
-    #     if txt == "":  # handle empty input string
-    #         return [""]
-    #     if not txt or not isinstance(txt, str):  # handle None
-    #         return []
-
-    #     tokens, features = self.dataset.make_feature(txt)
-
-    #     inputs = (
-    #         features,
-    #         torch.Tensor(0)  # dummy label when won't need it here
-    #     )
-
-    #     x, _, _ = self.dataset.prepare_model_inputs(inputs, device=device)
-    #     probs = torch.sigmoid(self.model(x))  # Call the class directly to instantiate an object
-    #     preds = probs > pred_threshold
-
-    #     # Convert predictions to CPU tensor
-    #     preds_cpu = preds.cpu()
-
-    #     # Convert boolean tensor to list of words
-    #     words = preprocessing.find_words_from_preds(tokens, preds_cpu)
-    #     return words
     def tokenizer(self, txt: str, sep="|", device="cpu", pred_threshold=0.5) -> List[str]:
         if txt == "":  # handle empty input string
             return [""]
@@ -104,7 +77,6 @@ class Attacut(nn.Module):
 
         # Convert input text to feature tensors
         tokens, features = self.dataset.make_feature(txt, self.characters_dict, self.syllables_dict)
-        print(f"tokens : {tokens}, features : {features}")
         inputs = (
             features,
             torch.Tensor(0)  # dummy label when won't need it here
@@ -112,16 +84,13 @@ class Attacut(nn.Module):
         # Prepare model inputs
         x, seq_lengths = inputs[0]
         x = x.to(device)
-        print(f"x : {x}")
 
         # Pass inputs through the model
         probs = torch.sigmoid(self.model((x, seq_lengths)))  # Call the model directly to instantiate an object
 
         # Convert probabilities to predictions
-        print(f"probs : {probs}")
         preds = probs > pred_threshold
         
-        print(f"pred : {preds}")
 
         # Convert predictions to CPU tensor
         preds_cpu = preds.cpu()

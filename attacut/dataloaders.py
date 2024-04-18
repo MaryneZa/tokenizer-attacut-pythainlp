@@ -8,16 +8,13 @@ from attacut import preprocessing
 class SyllableCharacterSeqDataset():
 
     def make_feature(self, txt, ch_dict, sy_dict):
-        print(f"txt: {txt}")
         syllables = preprocessing.syllable_tokenize(txt)
-        print(f"syllable : {syllables}")
         sy2ix, ch2ix = sy_dict, ch_dict
 
         ch_ix, syllable_ix = [], []
 
         for syllable in syllables:
             six = preprocessing.syllable2ix(sy2ix, syllable)
-            print(f"six : {six}")
             chs = list(
                 map(
                     lambda ch: preprocessing.character2ix(ch2ix, ch),
