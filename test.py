@@ -1,13 +1,11 @@
-from attacut import Attacut
+from attacut.models import Attacut
 
-text1 = "ร้อนมาก อยากตากลม"
+text1 ="ทดสอบภาษาอังกฤษ"
 text2 = "อากาศร้อน ส่งผลให้มนุษย์อวกาศไม่มีไอศกรีมรับประทาน"
 
-# attacut = Attacut()
-# attacut.from_checkpoint("attacut/models/attacut_sc/model.pth")
-attacut = Attacut.from_checkpoint("attacut/models/attacut_sc/model.pth")
-print(attacut.tokenizer(text1))
-print(attacut.tokenizer(text2))
+attacut = Attacut.from_checkpoint("attacut/statics/model.pth")
+print(attacut.inferrence(text1))
+print(attacut.inferrence(text2))
 
 
 
