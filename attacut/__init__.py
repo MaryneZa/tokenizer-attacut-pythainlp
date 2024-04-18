@@ -2,37 +2,41 @@ import torch
 from typing import Dict, List
 from attacut import dataloaders, preprocessing
 import torch.nn as nn
-from attacut.models import ConvolutionBatchNorm
 import torch.nn.functional as F
+from attacut.models import ConvolutionBatchNorm, STATIC_MODEL_CONFIG
 
 
 
 
 class Attacut(nn.Module):
-    dataset: dataloaders.SequenceDataset = dataloaders.SyllableCharacterSeqDataset()
-    def __init__(self, model: str = "attacut-sc"):
+    def __init__(self, model_config: Dict = STATIC_MODEL_CONFIG,model: str = "attacut_sc"):
         super(Attacut, self).__init__()
-        self.dataset = Attacut.dataset
-        data_config: Dict = self.dataset.setup_featurizer("attacut/artifacts/attacut-sc")
-        print(f"data_config : {data_config}")
-        no_chars = data_config['num_char_tokens']
-        no_syllables = data_config['num_tokens']
-        model_config = "embc:16|embs:8|conv:16|l1:16|do:0.0"
-        conv_filters = 64
-
-        self.ch_embeddings = nn.Embedding(no_chars, 32, padding_idx=0)
-        self.sy_embeddings = nn.Embedding(no_syllables, 16, padding_idx=0)
-
-        emb_dim = 48  # Sum of embedding dimensions (32 + 16)
-
-        self.dropout = torch.nn.Dropout(p=0.0)  # No dropout in this configuration
+        self.dataset = dataloaders.SyllableCharacterSeqDataset()
+        # data_config: Dict = self.dataset.setup_featurizer("attacut/models/attacut_sc")
+        # no_chars = data_config['num_char_tokens']
+        # no_syllables = data_config['num_tokens']
+        self.characters_dict = model_config["characters"]
+        self.syllables_dict = model_config["syllables"]
+        no_chars = len(self.characters_dict)
+        no_syllables = len(self.syllables_dict)
+        # print(f"data_config : {data_config}")
+        
+        conv_filters = model_config['conv']
+        self.dropout = torch.nn.Dropout(p=model_config['do']) 
+        
+        self.ch_embeddings = nn.Embedding(no_chars, model_config['embc'], padding_idx=0)
+        self.sy_embeddings = nn.Embedding(no_syllables, model_config['embs'], padding_idx=0)
+        
+        emb_dim = model_config['embc'] + model_config['embs']
 
         self.conv1 = ConvolutionBatchNorm(emb_dim, conv_filters, 3)
         self.conv2 = ConvolutionBatchNorm(emb_dim, conv_filters, 5, dilation=3)
         self.conv3 = ConvolutionBatchNorm(emb_dim, conv_filters, 9, dilation=2)
 
-        self.linear1 = nn.Linear(conv_filters, 32)
-        self.linear2 = nn.Linear(32, 1)
+        self.linear1 = nn.Linear(conv_filters, model_config['l1'])
+        self.linear2 = nn.Linear(model_config['l1'], 1)
+        self.model_params = model_config
+        
         
     @classmethod
     def from_checkpoint(cls, model_path):
@@ -69,23 +73,59 @@ class Attacut(nn.Module):
 
         return out
 
+    # def tokenizer(self, txt: str, sep="|", device="cpu", pred_threshold=0.5) -> List[str]:
+    #     if txt == "":  # handle empty input string
+    #         return [""]
+    #     if not txt or not isinstance(txt, str):  # handle None
+    #         return []
+
+    #     tokens, features = self.dataset.make_feature(txt)
+
+    #     inputs = (
+    #         features,
+    #         torch.Tensor(0)  # dummy label when won't need it here
+    #     )
+
+    #     x, _, _ = self.dataset.prepare_model_inputs(inputs, device=device)
+    #     probs = torch.sigmoid(self.model(x))  # Call the class directly to instantiate an object
+    #     preds = probs > pred_threshold
+
+    #     # Convert predictions to CPU tensor
+    #     preds_cpu = preds.cpu()
+
+    #     # Convert boolean tensor to list of words
+    #     words = preprocessing.find_words_from_preds(tokens, preds_cpu)
+    #     return words
     def tokenizer(self, txt: str, sep="|", device="cpu", pred_threshold=0.5) -> List[str]:
         if txt == "":  # handle empty input string
             return [""]
         if not txt or not isinstance(txt, str):  # handle None
             return []
 
-        tokens, features = Attacut.dataset.make_feature(txt)
-
+        # Convert input text to feature tensors
+        tokens, features = self.dataset.make_feature(txt, self.characters_dict, self.syllables_dict)
+        print(f"tokens : {tokens}, features : {features}")
         inputs = (
             features,
             torch.Tensor(0)  # dummy label when won't need it here
         )
+        # Prepare model inputs
+        x, seq_lengths = inputs[0]
+        x = x.to(device)
+        print(f"x : {x}")
 
-        x, _, _ = Attacut.dataset.prepare_model_inputs(inputs, device=device)
-        probs = torch.sigmoid(Attacut.model(x))  # Call the class directly to instantiate an object
+        # Pass inputs through the model
+        probs = torch.sigmoid(self.model((x, seq_lengths)))  # Call the model directly to instantiate an object
 
-        preds = probs.cpu().detach().numpy() > pred_threshold
+        # Convert probabilities to predictions
+        print(f"probs : {probs}")
+        preds = probs > pred_threshold
+        
+        print(f"pred : {preds}")
 
-        words = preprocessing.find_words_from_preds(tokens, preds)
+        # Convert predictions to CPU tensor
+        preds_cpu = preds.cpu()
+
+        # Convert boolean tensor to list of words
+        words = preprocessing.find_words_from_preds(tokens, preds_cpu)
         return words

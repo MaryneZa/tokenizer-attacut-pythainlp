@@ -1,68 +1,41 @@
-# -*- coding: utf-8 -*-
-import numpy as np
 import torch
 from torch.utils.data import Dataset
 import json
-from attacut import preprocessing, utils
-
-class SequenceDataset(Dataset):
-    def __init__(self, path: str = None):
-        if path:
-            self.load_preprocessed_data(path)
-
-    @staticmethod
-    def prepare_model_inputs(inputs, device="cpu"):
-
-        x, seq_lengths = inputs[0]
-        x = x.to(device)
-        y = inputs[1].float().to(device).reshape(-1)
-
-        return (x, seq_lengths), y, y.shape[0]
-    
+from attacut import preprocessing
 
 
 
-class SyllableCharacterSeqDataset(SequenceDataset):
-    def setup_featurizer(self, path: str):
+class SyllableCharacterSeqDataset():
 
-        with open(f"{path}/characters.json", "r", encoding="utf-8") as f:
-            self.ch_dict = json.load(f)
-
-        with open(f"{path}/syllables.json", "r", encoding="utf-8") as f:
-            self.sy_dict = json.load(f)
-
-        return dict(
-            num_char_tokens=len(self.ch_dict),
-            num_tokens=len(self.sy_dict)
-        )
-
-    def make_feature(self, txt):
+    def make_feature(self, txt, ch_dict, sy_dict):
+        print(f"txt: {txt}")
         syllables = preprocessing.syllable_tokenize(txt)
-
-        sy2ix, ch2ix = self.sy_dict, self.ch_dict
+        print(f"syllable : {syllables}")
+        sy2ix, ch2ix = sy_dict, ch_dict
 
         ch_ix, syllable_ix = [], []
 
         for syllable in syllables:
             six = preprocessing.syllable2ix(sy2ix, syllable)
-
+            print(f"six : {six}")
             chs = list(
                 map(
                     lambda ch: preprocessing.character2ix(ch2ix, ch),
                     list(syllable)
                 )
             )
-
             ch_ix.extend(chs)
             syllable_ix.extend([six]*len(chs))
 
-        features = np.stack((ch_ix, syllable_ix), axis=0) \
-            .reshape((1, 2, -1)) \
-            .astype(np.int64)
+        # Convert Python lists to PyTorch tensors
+        ch_ix_tensor = torch.tensor(ch_ix, dtype=torch.int64)
+        syllable_ix_tensor = torch.tensor(syllable_ix, dtype=torch.int64)
+        seq_lengths_tensor = torch.tensor([len(syllables)], dtype=torch.int64)
 
-        seq_lengths = np.array([features.shape[-1]], dtype=np.int64)
+        # Stack tensors along a new dimension to create features tensor
+        features = torch.stack((ch_ix_tensor, syllable_ix_tensor), dim=0)
 
-        return list(txt), (torch.from_numpy(features), torch.from_numpy(seq_lengths))
+        # Reshape features tensor
+        features = features.unsqueeze(0)
 
-    
-   
+        return list(txt), (features, seq_lengths_tensor)
