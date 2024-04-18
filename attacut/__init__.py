@@ -1,12 +1,9 @@
 import torch
 from typing import Dict, List
-from attacut import dataloaders, preprocessing
+from attacut import dataloaders
 import torch.nn as nn
 import torch.nn.functional as F
 from attacut.models import ConvolutionBatchNorm, STATIC_MODEL_CONFIG
-
-
-
 
 class Attacut(nn.Module):
     def __init__(self, model_config: Dict = STATIC_MODEL_CONFIG,model: str = "attacut_sc"):
@@ -79,7 +76,7 @@ class Attacut(nn.Module):
         tokens, features = self.dataset.make_feature(txt, self.characters_dict, self.syllables_dict)
         inputs = (
             features,
-            torch.Tensor(0)  # dummy label when won't need it here
+            torch.Tensor(0) 
         )
         # Prepare model inputs
         x, seq_lengths = inputs[0]
@@ -90,11 +87,19 @@ class Attacut(nn.Module):
 
         # Convert probabilities to predictions
         preds = probs > pred_threshold
-        
 
         # Convert predictions to CPU tensor
         preds_cpu = preds.cpu()
+        # Construct words from prediction labels {0, 1}
+        curr_word = tokens[0]
+        words = []
+        for s, p in zip(tokens[1:], preds_cpu[1:]):
+            if p == 0:
+                curr_word = curr_word + s
+            else:
+                words.append(curr_word)
+                curr_word = s
 
-        # Convert boolean tensor to list of words
-        words = preprocessing.find_words_from_preds(tokens, preds_cpu)
+        words.append(curr_word)
+
         return words
