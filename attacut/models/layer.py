@@ -1,7 +1,3 @@
-# -*- coding: utf-8 -*-
-import importlib
-import re
-import torch
 import torch.nn as nn
 
 class ConvolutionBatchNorm(nn.Module):
