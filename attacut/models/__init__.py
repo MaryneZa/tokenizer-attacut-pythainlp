@@ -8,45 +8,72 @@ from attacut.statics.pattern import *
 import ssg
 import string
 import json
+import os
+
 
 class Attacut(nn.Module):
-    def __init__(self, model_config: Dict = STATIC_MODEL_CONFIG,model: str = "attacut_sc"):
+    def __init__(self, config: Dict):
         super(Attacut, self).__init__()
-        
-        self.characters_dict = self.load_dict("attacut/statics/characters.json")
-        self.syllables_dict = self.load_dict("attacut/statics/syllables.json")
-        
+
+        self.config = config
+
+        self.characters_dict = self.config["characters_dict_config"]
+        self.syllables_dict = self.config["syllables_dict_config"]
+
         no_chars = len(self.characters_dict)
         no_syllables = len(self.syllables_dict)
-        
-        conv_filters = model_config['conv']
-        self.dropout = torch.nn.Dropout(p=model_config['do']) 
-        
-        self.ch_embeddings = nn.Embedding(no_chars, model_config['embc'], padding_idx=0)
-        self.sy_embeddings = nn.Embedding(no_syllables, model_config['embs'], padding_idx=0)
-        
-        emb_dim = model_config['embc'] + model_config['embs']
+
+        conv_filters = self.config["model_config"]["conv"]
+        self.dropout = torch.nn.Dropout(p=self.config["model_config"]["do"])
+
+        self.ch_embeddings = nn.Embedding(
+            no_chars, self.config["model_config"]["embc"], padding_idx=0
+        )
+        self.sy_embeddings = nn.Embedding(
+            no_syllables, self.config["model_config"]["embs"], padding_idx=0
+        )
+
+        emb_dim = (
+            self.config["model_config"]["embc"] + self.config["model_config"]["embs"]
+        )
 
         self.conv1 = ConvolutionBatchNorm(emb_dim, conv_filters, 3)
         self.conv2 = ConvolutionBatchNorm(emb_dim, conv_filters, 5, dilation=3)
         self.conv3 = ConvolutionBatchNorm(emb_dim, conv_filters, 9, dilation=2)
 
-        self.linear1 = nn.Linear(conv_filters, model_config['l1'])
-        self.linear2 = nn.Linear(model_config['l1'], 1)
-        
-        
+        self.linear1 = nn.Linear(conv_filters, self.config["model_config"]["l1"])
+        self.linear2 = nn.Linear(self.config["model_config"]["l1"], 1)
+
     @classmethod
     def from_checkpoint(cls, model_path, cuda=False, eval=True):
-        model = cls()  # Create an instance of the Attacut class
+        characters_dict_path = os.path.join(
+            os.path.dirname(__file__), "..", "statics/characters.json"
+        )
+        syllables_dict_path = os.path.join(
+            os.path.dirname(__file__), "..", "statics/syllables.json"
+        )
+
+        characters_dict = cls.load_dict(characters_dict_path)
+        syllables_dict = cls.load_dict(syllables_dict_path)
+
+        # Create an instance of the Attacut class
+        model = cls(
+            {
+                "model_config": STATIC_MODEL_CONFIG,
+                "characters_dict_config": characters_dict,
+                "syllables_dict_config": syllables_dict,
+            }
+        )
+
         model.load_state_dict(torch.load(model_path, map_location="cpu"))
-        
+
         device = torch.device("cuda" if cuda else "cpu")
         model.device = device
         model.to(device)
-        
+
         if eval:
             model.eval()
-        
+
         return model
 
     def forward(self, inputs):
@@ -71,15 +98,15 @@ class Attacut(nn.Module):
 
         out = F.relu(self.linear1(out))
         out = self.linear2(out)
-
         out = out.view(-1)
 
         return out
-    
-    def load_dict(self, data_path: str) -> Dict:
-            with open(data_path, "r", encoding="utf-8") as f:
-                dict = json.load(f)
-            return dict
+
+    @staticmethod
+    def load_dict(data_path: str) -> Dict:
+        with open(data_path, "r", encoding="utf-8") as f:
+            dict = json.load(f)
+        return dict
 
     def inferrence(self, txt: str, sep="|", pred_threshold=0.5) -> List[str]:
         if txt == "":  # handle empty input string
@@ -88,20 +115,20 @@ class Attacut(nn.Module):
             return []
 
         # Convert input text to feature tensors
-        tokens, features = self.prepare_tensor(txt, self.characters_dict, self.syllables_dict)
-        inputs = (
-            features,
-            torch.Tensor(0) 
+        tokens, features = self.prepare_tensor(
+            txt, self.characters_dict, self.syllables_dict
         )
+        inputs = (features, torch.Tensor(0))
         # Prepare model inputs
         x, seq_lengths = inputs[0]
         x = x.to(self.device)
 
         # Pass inputs through the model
-        probs = torch.sigmoid(self((x, seq_lengths)))  # Call the model directly to instantiate an object
+        probs = torch.sigmoid(
+            self((x, seq_lengths))
+        )  # Call the model directly to instantiate an object
         # Convert probabilities to predictions
         preds = probs > pred_threshold
-        
 
         # Convert predictions to CPU tensor
         preds_cpu = preds.cpu()
@@ -118,7 +145,7 @@ class Attacut(nn.Module):
         words.append(curr_word)
 
         return words
-    
+
     def syllable2ix(self, sy2ix: Dict[str, int], syllable: str) -> int:
         if ARABIC_RX.match(syllable):
             token = "<ENGLISH>"
@@ -128,7 +155,7 @@ class Attacut(nn.Module):
             token = syllable
 
         return sy2ix.get(token, sy2ix.get("<UNK>"))
-    
+
     def character2ix(self, ch2ix: Dict[str, int], character: str) -> int:
         if character == "":
             return ch2ix.get("<PAD>")
@@ -136,8 +163,6 @@ class Attacut(nn.Module):
             return ch2ix.get("<PUNC>")
 
         return ch2ix.get(character, ch2ix.get("<UNK>"))
-
-
 
     def prepare_tensor(self, txt, ch_dict, sy_dict):
         seps = txt.split(" ")
@@ -157,14 +182,9 @@ class Attacut(nn.Module):
 
         for syllable in new_tokens:
             six = self.syllable2ix(sy2ix, syllable)
-            chs = list(
-                map(
-                    lambda ch: self.character2ix(ch2ix, ch),
-                    list(syllable)
-                )
-            )
+            chs = list(map(lambda ch: self.character2ix(ch2ix, ch), list(syllable)))
             ch_ix.extend(chs)
-            syllable_ix.extend([six]*len(chs))
+            syllable_ix.extend([six] * len(chs))
 
         # Convert Python lists to PyTorch tensors
         ch_ix_tensor = torch.tensor(ch_ix, dtype=torch.int64)
@@ -178,4 +198,3 @@ class Attacut(nn.Module):
         features = features.unsqueeze(0)
 
         return list(txt), (features, seq_lengths_tensor)
-
